@@ -112,6 +112,13 @@ test_create_zero_size_window_LIBS = $(CODE_COVERAGE_LIBS)
 test_create_zero_size_window_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
 test_create_zero_size_window_CFLAGS = $(CODE_COVERAGE_CFLAGS)
 
+test_implicit_flush_SOURCES = test/implicit_flush.c \
+			     $(TEST_MBOX_SRCS) \
+			     $(TEST_MOCK_SRCS)
+test_implicit_flush_LIBS = $(CODE_COVERAGE_LIBS)
+test_implicit_flush_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
+test_implicit_flush_CFLAGS = $(CODE_COVERAGE_CFLAGS)
+
 check_PROGRAMS = test/copy_flash \
 		 test/erase_flash \
 		 test/write_flash \
@@ -126,6 +133,7 @@ check_PROGRAMS = test/copy_flash \
 		 test/mark_write_erased_v2 \
 		 test/bmc_event_ack_v2 \
 		 test/create_oversize_window \
-		 test/create_zero_size_window
+		 test/create_zero_size_window \
+		 test/implicit_flush
 
 TESTS = $(check_PROGRAMS)
