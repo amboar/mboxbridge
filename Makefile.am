@@ -98,6 +98,13 @@ test_bmc_event_ack_v2_LIBS = $(CODE_COVERAGE_LIBS)
 test_bmc_event_ack_v2_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
 test_bmc_event_ack_v2_CFLAGS = $(CODE_COVERAGE_CFLAGS)
 
+test_create_oversize_window_SOURCES = test/create_oversize_window.c \
+				      $(TEST_MBOX_OBJS) \
+				      $(TEST_MOCK_OBJS)
+test_create_oversize_window_LIBS = $(CODE_COVERAGE_LIBS)
+test_create_oversize_window_CPPFLAGS = $(CODE_COVERAGE_CPPFLAGS)
+test_create_oversize_window_CFLAGS = $(CODE_COVERAGE_CFLAGS)
+
 check_PROGRAMS = test/copy_flash \
 		 test/erase_flash \
 		 test/write_flash \
@@ -110,6 +117,7 @@ check_PROGRAMS = test/copy_flash \
 		 test/mark_write_dirty_v2 \
 		 test/write_flush_v2 \
 		 test/mark_write_erased_v2 \
-		 test/bmc_event_ack_v2
+		 test/bmc_event_ack_v2 \
+		 test/create_oversize_window
 
 TESTS = $(check_PROGRAMS)
