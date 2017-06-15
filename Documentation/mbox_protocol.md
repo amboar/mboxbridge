@@ -303,33 +303,37 @@ contents of the active window could be inconsistent with the contents of flash.
 
 ## Protocol Definition
 
+### Information
+- All multibyte messages are LSB first (little endian)
+- All responses must have a valid return code in byte 13
+
 ### Commands
 
-```
-RESET_STATE          0x01
-GET_MBOX_INFO        0x02
-GET_FLASH_INFO       0x03
-CREATE_READ_WINDOW   0x04
-CLOSE_WINDOW         0x05
-CREATE_WRITE_WINDOW  0x06
-MARK_WRITE_DIRTY     0x07
-WRITE_FLUSH          0x08
-BMC_EVENT_ACK        0x09
-MARK_WRITE_ERASED    0x0a	(V2)
-```
+Name                                                            | Value |  Min. Protocol Version
+----------------------------------------------------------------|-------|-----------------------
+[RESET_STATE](#reset_state)                                     | 0x01  |  1
+[GET_MBOX_INFO](#get_mbox_info)                                 | 0x02  |  1
+[GET_FLASH_INFO](#get_flash_info)                               | 0x03  |  1
+[CREATE_READ_WINDOW](#create_read_window--create_write_window)   | 0x04  |  1
+[CLOSE_WINDOW](#close_window)                                   | 0x05  |  1
+[CREATE_WRITE_WINDOW](#create_read_window--create_write_window)  | 0x06  |  1
+[MARK_WRITE_DIRTY](#mark_write_dirty)                           | 0x07  |  1
+[WRITE_FLUSH](#write_flush)                                     | 0x08  |  1
+[BMC_EVENT_ACK](#bmc_event_ack)                                 | 0x09  |  1
+[MARK_WRITE_ERASED](#mark_write_erased)                         | 0x0a  |  2
 
 ### Responses
 
-```
-SUCCESS		1
-PARAM_ERROR	2
-WRITE_ERROR	3
-SYSTEM_ERROR	4
-TIMEOUT		5
-BUSY		6	(V2)
-WINDOW_ERROR	7	(V2)
-SEQ_ERROR	8	(V2)
-```
+Name         | Value | Min. Protocol Version | Description
+-------------|-------|-----------------------|------------
+SUCCESS      | 1     | 1                     | Command completed successfully
+PARAM_ERROR  | 2     | 1                     | Error with parameters supplied or command invalid
+WRITE_ERROR  | 3     | 1                     | Error writing to the backing file system
+SYSTEM_ERROR | 4     | 1                     | Error in BMC performing system action
+TIMEOUT      | 5     | 1                     | Timeout in performing action
+BUSY         | 6     | 2                     | Daemon in suspended state (currently unable to access flash), or retry again later
+WINDOW_ERROR | 7     | 2                     | Command not valid for active window or no active window. Try opening an appropriate window and retrying the command
+SEQ_ERROR    | 8     | 2                     | Bad sequence number
 
 ### Sequence Numbers
 
@@ -350,30 +354,8 @@ invalid sequence number. For all other cases, the BMC must respond with
 response it must consider any in-progress commands to have failed. The host may
 retry the affected command(s) after generating a suitable sequence number.
 
-#### Description:
 
-SUCCESS		- Command completed successfully
-
-PARAM_ERROR	- Error with parameters supplied or command invalid
-
-WRITE_ERROR	- Error writing to the backing file system
-
-SYSTEM_ERROR	- Error in BMC performing system action
-
-TIMEOUT		- Timeout in performing action
-
-BUSY		- Daemon in suspended state (currently unable to access flash)
-		- Retry again later
-
-WINDOW_ERROR	- Command not valid for active window or no active window
-		- Try opening an appropriate window and retrying the command
-
-### Information
-- All multibyte messages are LSB first (little endian)
-- All responses must have a valid return code in byte 13
-
-
-### Commands in detail
+### Block Size
 
 Block size refers to an agreed value which is used as a unit for the
 arguments of various commands and responses. Having a block size multiplier
@@ -392,232 +374,307 @@ Sizes and addresses are specified in either bytes - (bytes)
 					 or blocks - (blocks)
 Sizes and addresses specified in blocks must be converted to bytes by
 multiplying by the block size.
-```
-Command:
-	RESET_STATE
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		-
-	Response:
-		-
-	Notes:
-		This command is designed to inform the BMC that it should put
-		host LPC mapping back in a state where the SBE will be able to
-		use it. Currently this means pointing back to BMC flash
-		pre mailbox protocol. Final behavour is still TBD.
 
-Command:
-	GET_MBOX_INFO
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		V1:
-		Args 0: API version
+## Commands in Detail
 
-		V2:
-		Args 0: API version
+### RESET_STATE
 
-	Response:
-		V1:
-		Args 0: API version
-		Args 1-2: default read window size (blocks)
-		Args 3-4: default write window size (blocks)
+Designed to inform the BMC that it should put host LPC mapping back in a state
+where the SBE will be able to use it. Currently this means pointing back to BMC
+flash pre mailbox protocol. Final behavour is still TBD.
 
-		V2:
-		Args 0: API version
-		Args 1-2: reserved
-		Args 3-4: reserved
-		Args 5: Block size as power of two (encoded as a shift)
-		Args 6-7: Suggested Timeout (seconds)
-	Notes:
-		The suggested timeout is a hint to the host as to how long
-		it should wait after issuing a command to the BMC before it
-		times out waiting for a response. This is the maximum time
-		which the BMC thinks it could take to service any command which
-		the host could issue. This may be set to zero to indicate that
-		the BMC	does not wish to provide a hint in which case the host
-		must choose some reasonable value.
+#### Implemented in Versions
 
-Command:
-	GET_FLASH_INFO
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		-
-	Response:
-		V1:
-		Args 0-3: Flash size (bytes)
-		Args 4-7: Erase granule (bytes)
+V1, V2
 
-		V2:
-		Args 0-1: Flash size (blocks)
-		Args 2-3: Erase granule (blocks)
+#### Command value
 
-Command:
-	CREATE_{READ/WRITE}_WINDOW
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		V1:
-		Args 0-1: Requested flash offset (blocks)
+0x01
 
-		V2:
-		Args 0-1: Requested flash offset (blocks)
-		Args 2-3: Requested flash size to access (blocks)
+#### Request Arguments
 
-	Response:
-		V1:
-		Args 0-1: LPC bus address of window (blocks)
+None
 
-		V2:
-		Args 0-1: LPC bus address of window (blocks)
-		Args 2-3: Window size (blocks)
-		Args 4-5: Flash offset mapped by window (blocks)
-	Notes:
-		The flash offset which the host requests access to is always
-		taken from the start of flash - that is it is an absolute
-		offset into flash.
+#### Response Arguments
 
-		LPC bus address is always given from the start of the LPC
-		address space - that is it is an absolute address.
+None
 
-		The requested access size is only a hint. The response
-		indicates the actual size of the window. The BMC may
-		want to use the requested size to pre-load the remainder
-		of the request. The host must not access past the end of the
-		active window.
+### GET_MBOX_INFO
 
-		The flash offset mapped by the window is an absolute flash
-		offset and must be less than or equal to the flash offset
-		requested by the host. It is the responsibility of the host
-		to use this information to access any offset which is required.
+Fetches the supported protocol version and other necessary information
+dependent on the negotiated protocol version.
 
-		The requested window size may be zero. In this case the
-		BMC is free to create any sized window but it must contain
-		atleast the first block of data requested by the host. A large
-		window is of course preferred and should correspond to
-		the default size returned in the GET_MBOX_INFO command.
+The suggested timeout is a hint to the host as to how long it should wait after
+issuing a command to the BMC before it times out waiting for a response. This
+is the maximum time which the BMC thinks it could take to service any command
+which the host could issue. This may be set to zero to indicate that the BMC
+does not wish to provide a hint in which case the host must choose some
+reasonable value.
 
-		If this command returns successfully then the created window
-		is the active window. If it fails then there is no active
-		window.
+#### Implemented in Versions
 
-Command:
-	CLOSE_WINDOW
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		V1:
-		-
+V1, V2
 
-		V2:
-		Args 0: Flags
-	Response:
-		-
-	Notes:
-		Closes the active window. Any further access to the LPC bus
-		address specified to address the previously active window will
-		have undefined effects. If the active window is a
-		write window then the BMC must perform an implicit flush.
+#### Command Value
 
-		The Flags argument allows the host to provide some
-		hints to the BMC. Defined Values:
-			0x01 - Short Lifetime:
-				The window is unlikely to be accessed
-				anytime again in the near future. The effect of
-				this will depend on BMC implementation. In
-				the event that the BMC performs some caching
-				the BMC daemon could mark data contained in a
-				window closed with this flag as first to be
-				evicted from the cache.
+0x02
 
-Command:
-	MARK_WRITE_DIRTY
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		V1:
-		Args 0-1: Flash offset to mark from base of flash (blocks)
-		Args 2-5: Number to mark dirty at offset (bytes)
+#### Request Arguments
 
-		V2:
-		Args 0-1: Window offset to mark (blocks)
-		Args 2-3: Number to mark dirty at offset (blocks)
+Argument | V1          | V2
+---------|-------------|------------
+ 0       | API version | API version
 
-	Response:
-		-
-	Notes:
-		The BMC has no method for intercepting writes that
-		occur over the LPC bus. The host must explicitly notify
-		the daemon of where and when a write has occured so it
-		can be flushed to backing storage.
+#### Response Arguments
 
-		Offsets are given as an absolute (either into flash (V1) or the
-		active window (V2)) and a zero offset refers to the first
-		block. If the offset + number exceeds the size of the active
-		window then the command must not succeed.
+Argument  | V1                                  | V2
+----------|-------------------------------------|------------
+ 0        | API version                         | API version
+ 1-2      | Default read window size (blocks)   | Reserved
+ 3-4      | Default write window size (blocks)  | Reserved
+ 5        | Undefined                           | Block size as power of two (encoded as a shift)
+ 6-7      | Undefined                           | Suggested Timeout (seconds)
 
-Command
-	WRITE_FLUSH
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		V1:
-		Args 0-1: Flash offset to mark from base of flash (blocks)
-		Args 2-5: Number to mark dirty at offset (bytes)
+### GET_FLASH_INFO
 
-		V2:
-		-
+Request information on the flash and erase granual size.
 
-	Response:
-		-
-	Notes:
-		Flushes any dirty/erased blocks in the active window to
-		the backing storage.
+#### Implemented in Versions
 
-		In V1 this can also be used to mark parts of the flash
-		dirty and flush in a single command. In V2 the explicit
-		mark dirty command must be used before a call to flush
-		since there are no longer any arguments. If the offset + number
-		exceeds the size of the active window then the command must not
-		succeed.
+V1, V2
 
+#### Command Value
 
-Command:
-	BMC_EVENT_ACK
-	Implemented in Versions:
-		V1, V2
-	Arguments:
-		Args 0:	Bits in the BMC status byte (mailbox data
-			register 15) to ack
-	Response:
-		*clears the bits in mailbox data register 15*
-	Notes:
-		The host should use this command to acknowledge BMC events
-		supplied in mailbox register 15.
+0x03
 
-Command:
-	MARK_WRITE_ERASED
-	Implemented in Versions:
-		V2
-	Arguments:
-		V2:
-		Args 0-1: Window offset to erase (blocks)
-		Args 2-3: Number to erase at offset (blocks)
-	Response:
-		-
-	Notes:
-		This command allows the host to erase a large area
-		without the need to individually write 0xFF
-		repetitively.
+#### Request Arguments
 
-		Offset is the offset within the active window to start erasing
-		from (zero refers to the first block of the active window) and
-		number is the number of blocks of the active window to erase
-		starting at offset. If the offset + number exceeds the size of
-		the active window then the command must not succeed.
-```
+None
+
+#### Response Arguments
+
+##### V1
+
+Argument  | Description
+----------|----------------------
+ 0-3      | Flash size (bytes)
+ 4-7      | Erase granule (bytes)
+
+##### V2
+
+Argument  | Description
+----------|----------------------
+ 0-1      | Flash size (blocks)
+ 2-3      | Erase granule (blocks)
+
+### CREATE_READ_WINDOW / CREATE_WRITE_WINDOW
+
+Create windows into the flash accessible via LPC FW cycles.
+
+The flash offset which the host requests access to is always taken from the
+start of flash - that is it is an absolute offset into flash. The returned LPC
+bus address is always given from the start of the LPC address space - that is
+it is an absolute address.
+
+The requested access size is only a hint. The response indicates the actual
+size of the window. The BMC may want to use the requested size to pre-load the
+remainder of the request. The host must not access past the end of the active
+window.
+
+The flash offset mapped by the window is an absolute flash offset and must be
+less than or equal to the flash offset requested by the host. It is the
+responsibility of the host to use this information to access any offset which
+is required.
+
+The requested window size may be zero. In this case the BMC is free to create
+any sized window but it must contain atleast the first block of data requested
+by the host. A large window is of course preferred and should correspond to the
+default size returned in the `GET_MBOX_INFO` command.
+
+If this command returns successfully then the created window is the active
+window. If it fails then there is no active window.
+
+#### Implemented in Versions:
+
+V1, V2
+
+#### Command Value
+
+Name | Value
+-----|------
+`CREATE_READ_WINDOW` | 0x04
+`CREATE_WRITE_WINDOW` | 0x06
+
+#### Request Arguments
+
+Argument | V1                              | V2
+---------|---------------------------------|--------------------------------
+ 0-1     | Requested flash offset (blocks) | Requested flash offset (blocks)
+ 2-3     | Undefined                       | Requested flash size to access (blocks)
+
+#### Response Arguments
+
+Argument | V1                                 | V2
+---------|------------------------------------|--------------------------------
+ 0-1	 | LPC bus address of window (blocks) | LPC bus address of window (blocks)
+ 2-3     | Undefined                          | Window size (blocks)
+ 4-5     | Undefined 			      | Flash offset mapped by window (blocks)
+
+### CLOSE_WINDOW
+
+Closes the active window. Any further access to the LPC bus address specified
+to address the previously active window will have undefined effects. If the
+active window is a write window then the BMC must perform an implicit flush.
+
+The Flags argument allows the host to provide some hints to the BMC. Defined
+Values:
+
+0x01 - Short Lifetime:
+	The window is unlikely to be accessed
+	anytime again in the near future. The effect of
+	this will depend on BMC implementation. In
+	the event that the BMC performs some caching
+	the BMC daemon could mark data contained in a
+	window closed with this flag as first to be
+	evicted from the cache.
+
+#### Implemented in Versions:
+
+V1, V2
+
+#### Command Value
+
+0x05
+
+#### Request Arguments
+
+##### V1
+
+None
+
+##### V2
+
+Argument  | Description
+----------|----------------------
+ 0        | Flags
+
+#### Response Arguments
+
+None
+
+### MARK_WRITE_DIRTY
+
+The BMC has no method for intercepting writes that occur over the LPC bus. The
+host must explicitly notify the daemon of where and when a write has occured so
+it can be flushed to backing storage.
+
+Offsets are given as an absolute (either into flash (V1) or the active window
+(V2)) and a zero offset refers to the first block. If the offset + number
+exceeds the size of the active window then the command must not succeed.
+
+#### Implemented in Versions
+
+V1, V2
+
+#### Command Value
+
+0x07
+
+#### Request Arguments
+
+##### V1
+
+Argument  | Description
+----------|----------------------
+ 0-1      | Flash offset to mark from base of flash (blocks)
+ 2-5      | Number to mark dirty at offset (bytes)
+
+##### V2
+
+Argument  | Description
+----------|----------------------
+ 0-1      | Window offset to mark (blocks)
+ 2-3      | Number to mark dirty at offset (blocks)
+
+#### Response Arguments:
+
+None
+
+### WRITE_FLUSH
+
+Flushes any dirty/erased blocks in the active window to the backing storage.
+
+In V1 this can also be used to mark parts of the flash dirty and flush in a
+single command. In V2 the explicit mark dirty command must be used before a
+call to flush since there are no longer any arguments. If the offset + number
+exceeds the size of the active window then the command must not succeed.
+
+#### Implemented in Versions
+
+V1, V2
+
+#### Request Arguments
+
+##### V1
+
+Argument  | Description
+----------|----------------------
+ 0-1      | Flash offset to mark from base of flash (blocks)
+ 2-5      | Number to mark dirty at offset (bytes)
+
+##### V2
+
+None
+
+#### Response Arguments
+
+None
+
+### BMC_EVENT_ACK
+
+The host should use this command to acknowledge BMC events supplied in mailbox
+register 15. Though the BMC does not provide any response arguments, its action
+must be to clear the requested bits if it is valid to do so.
+
+#### Implemented in Versions
+
+V1, V2
+
+#### Request Arguments
+
+Argument | V1                                 | V2
+---------|------------------------------------|-----------------------------------
+ 0	 | Bits in the BMC status byte to ack | Bits in the BMC status byte to ack
+
+#### Response Arguments
+
+None
+
+### MARK_WRITE_ERASED
+
+This command allows the host to erase a large area without the need to
+individually write 0xFF repetitively.
+
+Offset is the offset within the active window to start erasing from (zero
+refers to the first block of the active window) and number is the number of
+blocks of the active window to erase starting at offset. If the offset + number
+exceeds the size of the active window then the command must not succeed.
+
+#### Implemented in Versions
+
+#### Request Arguments
+
+##### V2
+
+Argument  | Description
+----------|----------------------
+ 0-1      | Window offset to erase (blocks)
+ 2-3      | Number to erase at offset (blocks)
+
+#### Response
+
+None
+
 
 ### BMC Events in Detail:
 
